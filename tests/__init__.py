@@ -2,6 +2,7 @@
 
 import os
 import unittest
+import requests
 
 from iloveck101.utils import parse_url, get_image_info
 from iloveck101.iloveck101 import iloveck101, main
@@ -15,10 +16,12 @@ TEST_DIR = os.path.abspath(os.path.join(__file__, '..'))
 @urlmatch(netloc=r'(.*\.)?imgs\.cc$')
 def image_mock(url, request):
     image = os.path.join('fixtures', 'jYY7oMF.jpg')
-    with open(os.path.join(TEST_DIR, image)) as f:
+    with open(os.path.join(TEST_DIR, image), 'rb') as f:
         content = f.read()
 
-    return content
+    response = requests.Response()
+    response._content = content
+    return response
 
 
 @urlmatch(netloc=r'(.*\.)?ck101\.com$')
@@ -102,30 +105,30 @@ class UtilsTest(unittest.TestCase):
     def test_get_image_info(self):
         jpg = os.path.join('fixtures', 'jYY7oMF.jpg')
 
-        with open(os.path.join(TEST_DIR, jpg)) as f:
+        with open(os.path.join(TEST_DIR, jpg), 'rb') as f:
             content_type, width, height = get_image_info(f.read())
 
-        self.assertEqual(content_type, 'image/jpeg')
+        self.assertEqual(content_type, 'JPEG')
         self.assertEqual(width, 612)
         self.assertEqual(height, 612)
 
 
         png = os.path.join('fixtures', 'firefox.png')
 
-        with open(os.path.join(TEST_DIR, png)) as f:
+        with open(os.path.join(TEST_DIR, png), 'rb') as f:
             content_type, width, height = get_image_info(f.read())
 
-        self.assertEqual(content_type, 'image/png')
+        self.assertEqual(content_type, 'PNG')
         self.assertEqual(width, 256)
         self.assertEqual(height, 256)
 
 
         gif = os.path.join('fixtures', 'firefox.gif')
 
-        with open(os.path.join(TEST_DIR, gif)) as f:
+        with open(os.path.join(TEST_DIR, gif), 'rb') as f:
             content_type, width, height = get_image_info(f.read())
 
-        self.assertEqual(content_type, 'image/gif')
+        self.assertEqual(content_type, 'GIF')
         self.assertEqual(width, 256)
         self.assertEqual(height, 256)
 

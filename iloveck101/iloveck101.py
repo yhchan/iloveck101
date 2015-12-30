@@ -35,7 +35,7 @@ def iloveck101(url):
                     if thread is not None:
                         retrieve_thread(thread)
             except KeyboardInterrupt:
-                print 'I love ck101'
+                print('I love ck101')
     else:
         sys.exit('This is not ck101 url')
 
@@ -69,7 +69,7 @@ def retrieve_thread(url):
     if not m:
         return
 
-    print '\nVisit %s' % (url)
+    print('\nVisit %s' % (url))
 
     thread_id = m.group(1)
 
@@ -114,13 +114,13 @@ def retrieve_thread(url):
             return
 
         # fetch image
-        print 'Fetching %s ...' % image_url
+        print('Fetching %s ...' % image_url)
         resp = requests.get(image_url, headers=REQUEST_HEADERS)
 
         # ignore small images
         content_type, width, height = get_image_info(resp.content)
         if width < 400 or height < 400:
-            print "image is too small"
+            print("image is too small")
             return
 
         # save image
