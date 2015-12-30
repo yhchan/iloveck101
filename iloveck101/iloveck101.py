@@ -1,7 +1,6 @@
 import os
 import sys
 import re
-import platform
 
 import gevent
 from gevent import monkey
@@ -12,18 +11,24 @@ import requests
 from lxml import etree
 from more_itertools import chunked
 
-from .utils import get_image_info, parse_url
+from .utils import get_image_info, parse_url, get_pic_base_folder
 from .exceptions import URLParseError
 
-
-REQUEST_HEADERS = {'User-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.57 Safari/537.36'}
+REQUEST_HEADERS = {
+    'User-agent': (
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_0) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/31.0.1650.57 Safari/537.36'
+    )
+}
 BASE_URL = 'http://ck101.com/'
 CHUNK_SIZE = 3
 
 
 def iloveck101(url):
     """
-    Determine the url is valid. And check if the url contains any thread link or it's a thread.
+    Determine the url is valid.
+    And check if the url contains any thread link or it's a thread.
     """
 
     if 'ck101.com' in url:
@@ -73,25 +78,8 @@ def retrieve_thread(url):
 
     thread_id = m.group(1)
 
-
     # create `iloveck101` folder in ~/Pictures
-    system = platform.system()
-    if system == 'Darwin':
-        picfolder = 'Pictures'
-    elif system == 'Windows':
-        release = platform.release()
-        if release in ['Vista', '7', '8']:
-            picfolder = 'Pictures'
-        elif release is 'XP':
-            picfolder = os.path.join('My Documents', 'My Pictures')
-        else:
-            picfolder = ''
-    else:
-        picfolder = ''
-
-    home = os.path.expanduser("~")
-    base_folder = os.path.join(home, picfolder, 'iloveck101')
-
+    base_folder = get_pic_base_folder()
     if not os.path.exists(base_folder):
         os.mkdir(base_folder)
 
