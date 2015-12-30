@@ -24,61 +24,57 @@ THREAD_CHUNK_SIZE = 3
 IMAGE_CHUNK_SIZE = 3
 
 
-class ck101Fetcher(object):
-    def __init__(self, client):
-        self.client = client
+async def retrieve_thread_list(client, url):
+    """ The url may contains many thread links. We parse them out. """
+    async with client.get(url, headers=REQUEST_HEADERS) as resp:
+        assert resp.status == 200
+        html = etree.HTML(await resp.read())
+        return set([url for url in html.xpath('//a/@href')])
 
-    async def retrieve_thread_list(self, url):
-        """ The url may contains many thread links. We parse them out. """
-        async with self.client.get(url, headers=REQUEST_HEADERS) as resp:
-            assert resp.status == 200
-            html = etree.HTML(await resp.read())
-            return set([url for url in html.xpath('//a/@href')])
 
-    async def parse_url(self, url):
-        """ parse image_url from given url """
-        for attemp in range(3):
-            try:
-                async with self.client.get(url,
-                                           headers=REQUEST_HEADERS) as resp:
-                    assert resp.status == 200
-                    html = etree.HTML(await resp.read())
-                    title = (html.find('.//title').text
-                             .split(' - ')[0]
-                             .replace('/', '')
-                             .strip())
-                    break
-            except (AttributeError, AssertionError):
-                print('Retrying ...')
-                continue
-        else:
-            raise URLParseError
+async def parse_url(client, url):
+    """ parse image_url from given url """
+    for attemp in range(3):
+        try:
+            async with client.get(url, headers=REQUEST_HEADERS) as resp:
+                assert resp.status == 200
+                html = etree.HTML(await resp.read())
+                title = (html.find('.//title').text
+                         .split(' - ')[0]
+                         .replace('/', '')
+                         .strip())
+                break
+        except (AttributeError, AssertionError):
+            print('Retrying ...')
+            continue
+    else:
+        raise URLParseError
 
-        image_urls = html.xpath('//img/@file')
-        return title, image_urls
+    image_urls = html.xpath('//img/@file')
+    return title, image_urls
 
-    async def get_image(self, image_url, folder):
-        filename = image_url.rsplit('/', 1)[1]
 
-        # ignore useless image
-        if not image_url.startswith('http'):
+async def get_image(client, image_url, folder):
+    filename = image_url.rsplit('/', 1)[1]
+
+    # ignore useless image
+    if not image_url.startswith('http'):
+        return
+
+    # fetch image
+    print('Fetching %s ...' % image_url)
+    async with client.get(image_url, headers=REQUEST_HEADERS) as resp:
+        assert resp.status == 200
+        content = await resp.read()
+        # ignore small images
+        content_type, width, height = get_image_info(content)
+        if width < 400 or height < 400:
+            print("image is too small")
             return
 
-        # fetch image
-        print('Fetching %s ...' % image_url)
-        async with self.client.get(image_url,
-                                   headers=REQUEST_HEADERS) as resp:
-            assert resp.status == 200
-            content = await resp.read()
-            # ignore small images
-            content_type, width, height = get_image_info(content)
-            if width < 400 or height < 400:
-                print("image is too small")
-                return
-
-            # save image
-            with open(os.path.join(folder, filename), 'wb+') as f:
-                f.write(content)
+        # save image
+        with open(os.path.join(folder, filename), 'wb+') as f:
+            f.write(content)
 
 
 def iloveck101(url):
@@ -93,15 +89,13 @@ def iloveck101(url):
     loop = asyncio.get_event_loop()
     client = aiohttp.ClientSession(loop=loop)
 
-    fetcher = ck101Fetcher(client)
-
     async def retrieve_threads(url):
         threads = ([url] if 'thread' in url
-                   else await fetcher.retrieve_thread_list(url))
+                   else await retrieve_thread_list(client, url))
 
         for chunked_threads in chunked(threads, THREAD_CHUNK_SIZE):
             await asyncio.wait([
-                retrieve_thread(fetcher, thread)
+                retrieve_thread(client, thread)
                 for thread in chunked_threads
             ])
 
@@ -113,7 +107,7 @@ def iloveck101(url):
     client.close()
 
 
-async def retrieve_thread(fetcher, url):
+async def retrieve_thread(client, url):
     """ download images from given ck101 URL """
 
     # check if the url has http prefix
@@ -135,7 +129,7 @@ async def retrieve_thread(fetcher, url):
 
     # parse title and images
     try:
-        title, image_urls = await fetcher.parse_url(url)
+        title, image_urls = await parse_url(client, url)
     except URLParseError:
         sys.exit('Oops, can not fetch the page')
 
@@ -146,7 +140,7 @@ async def retrieve_thread(fetcher, url):
 
     for chunked_image_urls in chunked(image_urls, IMAGE_CHUNK_SIZE):
         await asyncio.wait([
-            fetcher.get_image(image_url, folder)
+            get_image(client, image_url, folder)
             for image_url in chunked_image_urls
         ])
 
