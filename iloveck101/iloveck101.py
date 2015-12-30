@@ -11,7 +11,7 @@ import requests
 from lxml import etree
 from more_itertools import chunked
 
-from .utils import get_image_info, parse_url, get_pic_base_folder
+from .utils import get_image_info, get_pic_base_folder
 from .exceptions import URLParseError
 
 REQUEST_HEADERS = {
@@ -21,6 +21,7 @@ REQUEST_HEADERS = {
         'Chrome/31.0.1650.57 Safari/537.36'
     )
 }
+
 BASE_URL = 'http://ck101.com/'
 CHUNK_SIZE = 3
 
@@ -31,33 +32,46 @@ def iloveck101(url):
     And check if the url contains any thread link or it's a thread.
     """
 
-    if 'ck101.com' in url:
-        if 'thread' in url:
-            retrieve_thread(url)
-        else:
-            try:
-                for thread in retrieve_thread_list(url):
-                    if thread is not None:
-                        retrieve_thread(thread)
-            except KeyboardInterrupt:
-                print('I love ck101')
-    else:
+    if 'ck101.com' not in url:
         sys.exit('This is not ck101 url')
+
+    try:
+        threads = [url] if 'thread' in url else retrieve_thread_list(url)
+        for thread in filter(None, threads):
+            retrieve_thread(thread)
+    except KeyboardInterrupt:
+        print('I love ck101')
 
 
 def retrieve_thread_list(url):
-    """
-    The url may contains many thread links. We parse them out.
-    """
-
+    """ The url may contains many thread links. We parse them out. """
     resp = requests.get(url, headers=REQUEST_HEADERS)
-
-    # parse html
     html = etree.HTML(resp.content)
+    yield from html.xpath('//a/@href')
 
-    links = html.xpath('//a/@href')
-    for link in links:
-        yield link
+
+def parse_url(url):
+    """ parse image_url from given url """
+    title = None
+    for attemp in range(3):
+        try:
+            resp = requests.get(url, headers=REQUEST_HEADERS)
+            resp.raise_for_status()
+
+            html = etree.HTML(resp.content)
+            title = (html.find('.//title').text
+                     .split(' - ')[0]
+                     .replace('/', '')
+                     .strip())
+            break
+        except (AttributeError, requests.exceptions.HTTPError):
+            print('Retrying ...')
+            continue
+    else:
+        raise URLParseError
+
+    image_urls = html.xpath('//img/@file')
+    return title, image_urls
 
 
 def retrieve_thread(url):
@@ -66,8 +80,7 @@ def retrieve_thread(url):
     """
 
     # check if the url has http prefix
-    if not url.startswith('http'):
-        url = BASE_URL + url
+    url = BASE_URL + url if not url.startswith('http') else url
 
     # find thread id
     m = re.match('thread-(\d+)-.*', url.rsplit('/', 1)[1])
@@ -115,13 +128,10 @@ def retrieve_thread(url):
         with open(os.path.join(folder, filename), 'wb+') as f:
             f.write(resp.content)
 
-    try:
-        for chunked_image_urls in chunked(image_urls, CHUNK_SIZE):
-            jobs = [gevent.spawn(process_image_worker, image_url)
-                    for image_url in chunked_image_urls]
-            gevent.joinall(jobs)
-    except KeyboardInterrupt:
-        raise KeyboardInterrupt
+    for chunked_image_urls in chunked(image_urls, CHUNK_SIZE):
+        jobs = [gevent.spawn(process_image_worker, image_url)
+                for image_url in chunked_image_urls]
+        gevent.joinall(jobs)
 
 
 def main():
