@@ -19,11 +19,9 @@ setup(
         ]
     },
     install_requires=[
-        "lxml==3.4.4",
-        "requests==2.9.1",
-        "gevent==1.1rc2",
-        "more-itertools==2.2",
-        "Pillow==3.0.0",
-        "aiohttp==0.20.1",
+        'lxml',
+        'Pillow>=3.0.0',
+        'aiohttp>=0.20.1',
+        'more-itertools>=2.2',
     ],
 )
